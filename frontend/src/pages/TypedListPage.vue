@@ -5,6 +5,7 @@ import { getWebSocket } from '../websocket'
 import type { TelescopeEntry } from '../types'
 import EntryTable from '../components/EntryTable.vue'
 import SearchBar from '../components/SearchBar.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 const props = defineProps<{ typeSlug: string; title: string }>()
 
@@ -12,6 +13,7 @@ const entries = ref<TelescopeEntry[]>([])
 const loading = ref(true)
 const hasMore = ref(false)
 const search = ref('')
+const showClear = ref(false)
 
 const ws = getWebSocket()
 const unsub = ws.onEntry((entry) => {
@@ -42,6 +44,12 @@ async function loadMore() {
   hasMore.value = data.has_more
 }
 
+async function clearAll() {
+  await api.clear(props.typeSlug)
+  entries.value = []
+  showClear.value = false
+}
+
 watch(() => props.typeSlug, () => load())
 onMounted(() => load())
 onUnmounted(unsub)
@@ -51,7 +59,16 @@ onUnmounted(unsub)
   <div>
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold text-surface-100 light:text-surface-900">{{ title }}</h1>
-      <SearchBar v-model="search" :placeholder="`Search ${title.toLowerCase()}...`" @search="load" class="w-72" />
+      <div class="flex items-center gap-3">
+        <SearchBar v-model="search" :placeholder="`Search ${title.toLowerCase()}...`" @search="load" class="w-72" />
+        <button
+          v-if="entries.length"
+          @click="showClear = true"
+          class="px-3 py-2 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+        >
+          Clear
+        </button>
+      </div>
     </div>
 
     <div class="rounded-xl border border-surface-800 light:border-surface-200 overflow-hidden">
@@ -63,5 +80,13 @@ onUnmounted(unsub)
         </button>
       </div>
     </div>
+
+    <ConfirmDialog
+      :open="showClear"
+      :title="`Clear ${title}`"
+      :message="`This will permanently delete all ${title.toLowerCase()} entries. Continue?`"
+      @confirm="clearAll"
+      @cancel="showClear = false"
+    />
   </div>
 </template>

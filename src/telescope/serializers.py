@@ -15,8 +15,9 @@ def serialize_entry_list(entry):
         "type_label": entry_type.label,
         "type_slug": entry_type.slug,
         "summary": summary,
+        "content": content,
         "created_at": entry.created_at.isoformat(),
-        "tags": [t.tag for t in entry.tags.all()] if hasattr(entry, "_prefetched_objects_cache") else [],
+        "tags": list(entry.tags.values_list("tag", flat=True)) if entry.pk else [],
     }
 
 

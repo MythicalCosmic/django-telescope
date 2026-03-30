@@ -6,12 +6,14 @@ import type { TelescopeEntry } from '../types'
 import SearchBar from '../components/SearchBar.vue'
 import DurationBadge from '../components/DurationBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { formatTimeAgo } from '../composables/useTimeAgo'
 
 const entries = ref<TelescopeEntry[]>([])
 const loading = ref(true)
 const hasMore = ref(false)
 const search = ref('')
+const showClear = ref(false)
 
 const ws = getWebSocket()
 const unsub = ws.onEntry((entry) => {
@@ -42,6 +44,12 @@ async function loadMore() {
   hasMore.value = data.has_more
 }
 
+async function clearAll() {
+  await api.clear('request')
+  entries.value = []
+  showClear.value = false
+}
+
 onMounted(() => load())
 onUnmounted(unsub)
 </script>
@@ -50,7 +58,16 @@ onUnmounted(unsub)
   <div>
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold text-surface-100 light:text-surface-900">Requests</h1>
-      <SearchBar v-model="search" placeholder="Search requests..." @search="load" class="w-72" />
+      <div class="flex items-center gap-3">
+        <SearchBar v-model="search" placeholder="Search requests..." @search="load" class="w-72" />
+        <button
+          v-if="entries.length"
+          @click="showClear = true"
+          class="px-3 py-2 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+        >
+          Clear
+        </button>
+      </div>
     </div>
 
     <div class="rounded-xl border border-surface-800 light:border-surface-200 overflow-hidden">
@@ -113,5 +130,13 @@ onUnmounted(unsub)
         </button>
       </div>
     </div>
+
+    <ConfirmDialog
+      :open="showClear"
+      title="Clear Requests"
+      message="This will permanently delete all request entries. Continue?"
+      @confirm="clearAll"
+      @cancel="showClear = false"
+    />
   </div>
 </template>

@@ -89,7 +89,7 @@ class Recorder:
                 TelescopeEntryTag.objects.bulk_create(tag_objects)
 
             # Broadcast via WebSocket
-            cls._broadcast(created)
+            cls._broadcast(created, tag_map)
 
         except Exception:
             logger.exception("Failed to persist telescope entries")
@@ -97,7 +97,7 @@ class Recorder:
             _persisting.reset(token)
 
     @classmethod
-    def _broadcast(cls, entries):
+    def _broadcast(cls, entries, tag_map=None):
         """Send new entries to connected WebSocket clients."""
         try:
             from channels.layers import get_channel_layer
@@ -107,16 +107,24 @@ class Recorder:
             if channel_layer is None:
                 return
 
+            from .serializers import _get_summary
+
+            tag_map = tag_map or {}
+
             for entry in entries:
+                entry_type = EntryType(entry.type)
+                tags = tag_map.get(str(entry.uuid), [])
                 message = {
                     "type": "telescope.entry",
                     "entry": {
                         "uuid": str(entry.uuid),
                         "batch_id": str(entry.batch_id) if entry.batch_id else None,
                         "type": entry.type,
-                        "type_label": EntryType(entry.type).label,
-                        "type_slug": EntryType(entry.type).slug,
+                        "type_label": entry_type.label,
+                        "type_slug": entry_type.slug,
+                        "summary": _get_summary(entry_type, entry.content or {}),
                         "content": entry.content,
+                        "tags": tags,
                         "created_at": entry.created_at.isoformat() if entry.created_at else None,
                     },
                 }
