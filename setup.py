@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="django-scope",
-    version="1.0.0",
+    version="1.0.1",
     author="MythicalCosmic",
     author_email="qodirjonov0854@gmail.com",
     description="A real-time debugging and monitoring dashboard for Django — monitor requests, queries, cache, Redis, exceptions, and more.",
