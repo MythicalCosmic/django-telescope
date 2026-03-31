@@ -6,54 +6,61 @@ from .base import BaseWatcher
 
 TRACKED_METHODS = ("get", "set", "delete", "clear", "get_many", "set_many", "delete_many", "has_key", "incr", "decr")
 
+_patched_classes = set()
+
 
 class CacheWatcher(BaseWatcher):
-    """Records cache operations by wrapping methods on each configured cache instance.
+    """Records cache operations by patching cache backend classes.
 
     Works with any cache backend (django-redis, memcached, file, locmem, etc.)
-    by patching the actual cache objects from django.core.cache.caches.
+    by patching methods on the actual backend class so all threads see it.
     """
 
     def register(self):
         from django.core.cache import caches
         from django.conf import settings
 
-        # Patch each configured cache backend
         for alias in settings.CACHES:
             try:
                 cache = caches[alias]
-                self._patch_cache_instance(cache, alias)
+                self._patch_cache_class(type(cache), alias)
             except Exception:
                 pass
 
-    def _patch_cache_instance(self, cache, alias):
-        """Wrap each cache method on this specific instance."""
+    def _patch_cache_class(self, cache_cls, alias):
+        """Patch methods on the cache backend class (not instance) so all threads get it."""
+        cls_id = id(cache_cls)
+        if cls_id in _patched_classes:
+            return
+        _patched_classes.add(cls_id)
+
         for method_name in TRACKED_METHODS:
-            original = getattr(cache, method_name, None)
+            original = getattr(cache_cls, method_name, None)
             if original is None:
                 continue
-            # Don't double-patch
             if getattr(original, "_telescope_patched", False):
                 continue
-            wrapped = _make_wrapper(method_name, original, alias)
-            setattr(cache, method_name, wrapped)
+            wrapped = _make_wrapper(method_name, original)
+            setattr(cache_cls, method_name, wrapped)
 
 
-def _make_wrapper(method_name, original, alias):
-    def wrapper(*args, **kwargs):
+def _make_wrapper(method_name, original):
+    def wrapper(self, *args, **kwargs):
         start = time.perf_counter()
         result = None
         try:
-            result = original(*args, **kwargs)
+            result = original(self, *args, **kwargs)
             return result
         finally:
             duration_ms = (time.perf_counter() - start) * 1000
             try:
+                alias = getattr(self, "_alias", "default")
                 _record(method_name, args, kwargs, result, duration_ms, alias)
             except Exception:
                 pass
     wrapper._telescope_patched = True
     wrapper.__name__ = method_name
+    wrapper.__qualname__ = f"CacheWatcher.{method_name}"
     return wrapper
 
 

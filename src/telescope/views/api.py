@@ -1,7 +1,9 @@
 import json
 
 from django.http import JsonResponse
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 
 from ..entry_type import EntryType
 from ..filtering import apply_filters
@@ -11,8 +13,9 @@ from ..serializers import serialize_entry_detail, serialize_entry_list
 from ..settings import get_config
 
 
+@method_decorator(csrf_exempt, name="dispatch")
 class TelescopeApiMixin:
-    """Authorization check for telescope API."""
+    """Authorization check + CSRF exemption for telescope API."""
 
     def dispatch(self, request, *args, **kwargs):
         if not self._is_authorized(request):
